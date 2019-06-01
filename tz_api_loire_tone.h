@@ -17,7 +17,7 @@
 #ifndef _TZAPI_LOIRE_TONE_H_
 #define _TZAPI_LOIRE_TONE_H_
 
-#include <stdint.h>
+#include "tz_api_common.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,6 +41,7 @@ enum fingerprint_group_t {
     FPC_GROUP_FPCDATA = 0x3,
     FPC_GROUP_DEBUG = 0x6, // I think?
     FPC_GROUP_QC = 0x07,
+    FPC_GROUP_NAVIGATION = 0x8,
 };
 
 //enumerate tz app command ID's
@@ -197,6 +198,15 @@ typedef struct {
     uint32_t cmd_id;
     uint64_t auth_id;
 } fpc_get_db_id_cmd_t;
+
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    uint32_t ret_val;
+    uint32_t gesture;
+    uint32_t finger_on;
+    uint32_t should_poll;
+} fpc_navi_cmd_t;
 
 #ifdef __cplusplus
 }

@@ -11,6 +11,7 @@ enum fingerprint_navigation_t {
     FPC_NAVIGATION_ENTER = 0x1,
     FPC_NAVIGATION_EXIT = 0x2,
     FPC_NAVIGATION_POLL = 0x3,
+    FPC_NAVIGATION_WAIT_FINGER = 0x4,
 };
 
 enum fingerprint_gesture_t {

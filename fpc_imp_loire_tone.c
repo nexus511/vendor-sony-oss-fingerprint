@@ -403,25 +403,149 @@ err_t fpc_capture_image(fpc_imp_data_t *data)
 
 bool fpc_navi_supported(fpc_imp_data_t __unused *data)
 {
+    /**
+     * Keep disabled. FPC_NAVIGATION_POLL has the nasty side-effect of
+     * blocking indefinitely as long as a finger is on the sensor (except
+     * when detecting a "hold" gesture). This blocks up the TZ which the
+     * GPU drivers try to access (secured context), freezing up the entire
+     * UI in the end.
+     * As long as we can't find a way around that, keep this feature disabled
+     * (which otherwise performs _very_ accurate and responsive).
+     */
     return false;
 }
 
-err_t fpc_navi_enter(fpc_imp_data_t __unused *data)
+err_t fpc_navi_enter(fpc_imp_data_t *data)
 {
     ALOGV(__func__);
-    return -ENOSYS;
+    fpc_data_t *ldata = (fpc_data_t *)data;
+
+    fpc_navi_cmd_t cmd = {
+        .group_id = FPC_GROUP_NAVIGATION,
+        .cmd_id = FPC_NAVIGATION_ENTER,
+    };
+
+    int ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+
+    ALOGE_IF(ret || cmd.ret_val, "Failed to send NAVIGATION_ENTER rc=%d s=%d", ret, cmd.ret_val);
+
+    return ret || cmd.ret_val;
 }
 
-err_t fpc_navi_exit(fpc_imp_data_t __unused *data)
+err_t fpc_navi_exit(fpc_imp_data_t *data)
 {
     ALOGV(__func__);
-    return -ENOSYS;
+    fpc_data_t *ldata = (fpc_data_t *)data;
+
+    fpc_navi_cmd_t cmd = {
+        .group_id = FPC_GROUP_NAVIGATION,
+        .cmd_id = FPC_NAVIGATION_EXIT,
+    };
+
+    int ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+
+    ALOGE_IF(ret || cmd.ret_val, "Failed to send NAVIGATION_EXIT rc=%d s=%d", ret, cmd.ret_val);
+
+    return ret || cmd.ret_val;
 }
 
-err_t fpc_navi_poll(fpc_imp_data_t __unused *data)
+static err_t fpc_navi_wait_finger(fpc_imp_data_t *data)
 {
     ALOGV(__func__);
-    return -ENOSYS;
+    fpc_data_t *ldata = (fpc_data_t *)data;
+
+    fpc_navi_cmd_t cmd = {
+        .group_id = FPC_GROUP_NAVIGATION,
+        .cmd_id = FPC_NAVIGATION_WAIT_FINGER,
+    };
+
+    int ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+    ALOGE_IF(ret || cmd.ret_val, "Failed to send FPC_NAVIGATION_WAIT_FINGER rc=%d s=%d",
+             ret, cmd.ret_val);
+
+    if (ret || cmd.ret_val)
+        return ret || cmd.ret_val;
+
+    ret = fpc_poll_event(&data->event);
+
+    if (ret == FPC_EVENT_ERROR)
+        return -1;
+
+    return ret == FPC_EVENT_FINGER;
+}
+
+err_t fpc_navi_poll(fpc_imp_data_t *data)
+{
+    ALOGV(__func__);
+    fpc_data_t *ldata = (fpc_data_t *)data;
+    int ret = 0;
+
+    fpc_navi_cmd_t cmd = {
+        .group_id = FPC_GROUP_NAVIGATION,
+        .cmd_id = FPC_NAVIGATION_POLL,
+    };
+
+    // Bail out early when an event is available, instead of
+    // waiting for FPC_EVENT_EVENTFD from fpc_poll_event:
+    while (!is_event_available(&data->event)) {
+        ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+
+        ALOGE_IF(ret || cmd.ret_val, "Failed to send NAVIGATION_POLL rc=%d s=%d", ret, cmd.ret_val);
+        if (ret || cmd.ret_val)
+            return ret || cmd.ret_val;
+
+        ALOGD("Gesture: %d, down: %d, poll: %d", cmd.gesture, cmd.finger_on, cmd.should_poll);
+
+        if (cmd.gesture) {
+            switch (cmd.gesture) {
+                case FPC_GESTURE_UP:
+                    // 103 = SYSTEM_NAVIGATION_UP
+                    ALOGI("Gesture: Up");
+                    fpc_uinput_click(&data->uinput, KEY_UP);
+                    break;
+                case FPC_GESTURE_DOWN:
+                    // 108 = SYSTEM_NAVIGATION_DOWN
+                    ALOGI("Gesture: Down");
+                    fpc_uinput_click(&data->uinput, KEY_DOWN);
+                    break;
+                case FPC_GESTURE_RIGHT:
+                    // 105 = SYSTEM_NAVIGATION_RIGHT
+                    ALOGI("Gesture: Right");
+                    fpc_uinput_click(&data->uinput, KEY_RIGHT);
+                    break;
+                case FPC_GESTURE_LEFT:
+                    // 106 = SYSTEM_NAVIGATION_LEFT
+                    ALOGI("Gesture: Left");
+                    fpc_uinput_click(&data->uinput, KEY_LEFT);
+                    break;
+
+                    // Not handled:
+                case FPC_GESTURE_GONE:
+                    // Single tap but could also be an unknown-gesture error,
+                    // as it happens when sliding too fast and not holding it
+                    // near the end.
+                    ALOGI("Gesture: Finger gone");
+                    break;
+                case FPC_GESTURE_HOLD:
+                    ALOGI("Gesture: Hold");
+                    break;
+            }
+        }
+
+        if (cmd.finger_on) {
+            // Decrease spam on TZ. Sleeping for such a short time
+            // (contrary to multiple milliseconds) makes the gestures
+            // much more responsive and accurate.
+            usleep(10);
+        } else {
+            ret = fpc_navi_wait_finger(data);
+            // If error or false:
+            if (ret <= 0)
+                break;
+        }
+    }
+
+    return ret;
 }
 
 err_t fpc_enroll_step(fpc_imp_data_t *data, uint32_t *remaining_touches)
