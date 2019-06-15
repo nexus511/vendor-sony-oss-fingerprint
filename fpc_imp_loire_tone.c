@@ -474,11 +474,46 @@ static err_t fpc_navi_wait_finger(fpc_imp_data_t *data)
     return ret == FPC_EVENT_FINGER;
 }
 
+static err_t fpc_navi_test_config(fpc_imp_data_t *data)
+{
+    ALOGV(__func__);
+    fpc_data_t *ldata = (fpc_data_t *)data;
+    int ret = 0;
+
+    fpc_navi_config_cmd_t cmd = {
+        .group_id = FPC_GROUP_NAVIGATION,
+        .cmd_id = FPC_NAVIGATION_GET_CONFIG,
+    };
+
+    ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+    ALOGE_IF(ret || cmd.ret_val, "Failed to send NAVIGATION_GET_CONFIG rc=%d s=%d", ret, cmd.ret_val);
+    if (ret || cmd.ret_val)
+        return ret || cmd.ret_val;
+
+    // Defaults:
+    // cmd.min_tap_time: 0xa = 10
+    // cmd.max_tap_time: 0x1be = 446
+    // cmd.min_hold_time: 0x1bf = 447
+    // 3: 0xa = 10
+    // 4: 0xa = 10
+
+    cmd.cmd_id = FPC_NAVIGATION_SET_CONFIG;
+    ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+    ALOGE_IF(ret || cmd.ret_val, "Failed to send NAVIGATION_SET_CONFIG rc=%d s=%d", ret, cmd.ret_val);
+    return ret || cmd.ret_val;
+}
+
 err_t fpc_navi_poll(fpc_imp_data_t *data)
 {
     ALOGV(__func__);
     fpc_data_t *ldata = (fpc_data_t *)data;
     int ret = 0;
+
+    // Apply test configuration:
+    ret |= fpc_navi_exit(data);
+    ret |= fpc_navi_test_config(data);
+    ret |= fpc_navi_enter(data);
+    ALOGE_IF(ret, "Failed to apply test configuration");
 
     fpc_navi_cmd_t cmd = {
         .group_id = FPC_GROUP_NAVIGATION,

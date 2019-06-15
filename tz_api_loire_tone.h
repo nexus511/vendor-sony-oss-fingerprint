@@ -208,6 +208,25 @@ typedef struct {
     uint32_t should_poll;
 } fpc_navi_cmd_t;
 
+typedef struct {
+    uint32_t group_id;
+    uint32_t cmd_id;
+    uint32_t ret_val;
+
+    // Time bounds a finger needs to be stationary on the sensor
+    // to generate FPC_GESTURE_GONE, which can probably be
+    // interpreted as a single tap.
+    uint32_t min_tap_time;
+    uint32_t max_tap_time;
+
+    // Minimum time the finger needs to be stationary on
+    // the sensor beforegenerating a HOLD command
+    uint32_t min_hold_time;
+
+    // Unknown options
+    uint32_t config[2];
+} fpc_navi_config_cmd_t;
+
 #ifdef __cplusplus
 }
 #endif
