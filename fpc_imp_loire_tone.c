@@ -28,7 +28,7 @@
 #include <sys/stat.h>
 
 #define LOG_TAG "FPC IMP"
-//#define LOG_NDEBUG 0
+#define LOG_NDEBUG 0
 
 #include <log/log.h>
 #include <limits.h>
@@ -412,7 +412,7 @@ bool fpc_navi_supported(fpc_imp_data_t __unused *data)
      * As long as we can't find a way around that, keep this feature disabled
      * (which otherwise performs _very_ accurate and responsive).
      */
-    return false;
+    return true;
 }
 
 err_t fpc_navi_enter(fpc_imp_data_t *data)
@@ -523,7 +523,9 @@ err_t fpc_navi_poll(fpc_imp_data_t *data)
     // Bail out early when an event is available, instead of
     // waiting for FPC_EVENT_EVENTFD from fpc_poll_event:
     while (!is_event_available(&data->event)) {
+        ALOGV("Sending navi poll");
         ret = send_custom_cmd(ldata, &cmd, sizeof(cmd));
+        ALOGV("Navi poll done");
 
         ALOGE_IF(ret || cmd.ret_val, "Failed to send NAVIGATION_POLL rc=%d s=%d", ret, cmd.ret_val);
         if (ret || cmd.ret_val)
