@@ -955,6 +955,33 @@ err_t fpc_init(fpc_imp_data_t **data, int event_fd)
 
     fpc_deep_sleep((fpc_imp_data_t*)fpc_data);
 
+    {
+        struct {
+            uint32_t group_id;
+            uint32_t cmd_id;
+            uint32_t ret;
+            uint32_t size;
+            char data[0x410 - 12];
+        } buildinfo = {
+            .group_id = 9,
+            .cmd_id = 2,
+            .size = 0x400,
+        };
+
+        result = send_custom_cmd(fpc_data, &buildinfo, sizeof(buildinfo));
+        if (!result && !buildinfo.ret) {
+            char *pos = strtok(buildinfo.data + 32, "\n: ");
+            while (pos != NULL) {
+                ALOGD("%s", pos);
+                pos = strtok(NULL, "\n: ");
+            }
+            buildinfo.data[32] = 0;
+            ALOGD("Hash: %s", buildinfo.data);
+        }
+        else
+            ALOGE("Failed to get buildinfo");
+    }
+
     if (fpc_set_power(&fpc_data->data.event, FPC_PWROFF) < 0) {
         ALOGE("Error stopping device\n");
         goto err_alloc;
