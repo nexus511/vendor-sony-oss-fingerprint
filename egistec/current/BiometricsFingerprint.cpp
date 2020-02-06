@@ -447,9 +447,15 @@ void BiometricsFingerprint::IdleAsync() {
     int rc = 0;
     int which;
 
-    rc = mTrustlet.SetWorkMode(WorkMode::NavigationDetect);
-    LOG_ALWAYS_FATAL_IF(rc, "SetWorkMode(WorkMode::NavigationDetect) failed with rc=%d", rc);
+    if (mHwId >= 0x600) {
+        ALOGW("Sensor >=0x600 does not have a NAVI implementation YET!");
+        rc = mTrustlet.SetWorkMode(WorkMode::Sleep);
+        LOG_ALWAYS_FATAL_IF(rc, "SetWorkMode(WorkMode::NavigationDetect) failed with rc=%d", rc);
+        WorkHandler::IdleAsync();
+        return;
+    }
 
+    rc = mTrustlet.SetWorkMode(WorkMode::NavigationDetect);
     for (;;) {
         rc = mTrustlet.GetNavEvent(which);
         LOG_ALWAYS_FATAL_IF(rc, "GetNavEvent failed!");
@@ -673,6 +679,13 @@ void BiometricsFingerprint::EnrollAsync() {
 
     rc = mTrustlet.FinalizeEnroll();
     ALOGE_IF(rc, "%s: Failed to uninitialize enroll, rc = %d", __func__, rc);
+
+// TODO FIX:
+// 02-05 15:39:11.260  6745  6746 I FPC ET  : EnrollAsync: Finalizing, Percentage = 8%
+// 02-05 15:39:11.261  6745  6746 E FPC ET  : SendCommand ret_val = 0xffff6007
+// 02-05 15:39:11.261  6745  6746 E FPC ET  : EnrollAsync: Failed to uninitialize enroll, rc = -40953
+// 02-05 15:39:11.262  6745  6746 I FPC ET  : EnrollAsync: Canceled
+
 
     if (canceled) {
         ALOGI("%s: Canceled", __func__);

@@ -49,10 +49,17 @@ void log_hex(const char *data, int length) {
     free(base);
 }
 
+// TODO CLEANUP
+#ifdef USE_FPC_KUMANO
+EGISAPTrustlet::EGISAPTrustlet() : QSEETrustlet("egista", 0x2400, /* path: */ "/odm/firmware") {
+#else
 EGISAPTrustlet::EGISAPTrustlet() : QSEETrustlet("egisap32", 0x2400) {
+#endif
 }
 
 int EGISAPTrustlet::SendCommand(EGISAPTrustlet::API &api) {
+    bool retried = false;
+retry:
     // TODO: += !
     api.GetRequest().process = 0xe0;
     auto &base = api.PrepareBase(api.GetRequest().process);
@@ -79,6 +86,16 @@ int EGISAPTrustlet::SendCommand(EGISAPTrustlet::API &api) {
     // TODO: List expected response codes in an enum.
     rc = base.ret_val;
     ALOGE_IF(rc, "%s ret_val = %#x", __func__, rc);
+
+    if (rc == 99 && !retried) {
+        ALOGW("RETRYING");
+        retried = true;
+
+        // TODO POWER UP
+
+        goto retry;
+    }
+
     return rc;
 }
 
